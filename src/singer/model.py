@@ -318,7 +318,7 @@ class YingSinger(nn.Module):
             singer_path: Path to checkpoint directory.
             device: Target device for model.
         """
-        if singer_path is None:
+        if singer_path is None or not os.path.exists(singer_path):
             singer_path = snapshot_download(
                 repo_id=self.HF_REPO_ID,
                 cache_dir=self.cache_dir,
