@@ -61,25 +61,25 @@ def run_inference(
         gr.Error: If model not loaded or required inputs missing.
     """
     if singer is None:
-        raise gr.Error("Model not loaded. Please check the logs. / 模型未成功加载，请检查日志。")
+        raise gr.Error("Model not loaded. Please check the logs.")
 
     if not timbre_audio:
-        raise gr.Error("Please upload timbre reference audio. / 请上传音色参考音频")
+        raise gr.Error("Please upload the timbre reference audio.")
     if not timbre_content:
-        raise gr.Error("Please enter reference audio text. / 请输入参考音频的文本内容")
+        raise gr.Error("Please enter the reference audio text content.")
     if not melody_audio and not midi_file:
-        raise gr.Error("Please upload melody reference audio or MIDI file. / 请上传旋律参考音频或 MIDI 文件")
+        raise gr.Error("Please upload the melody reference audio or a MIDI file.")
 
     if midi_file:
         print(f"Using MIDI file for melody input: {midi_file}")
-        gr.Info("Using MIDI file as melody input. / 使用 MIDI 文件作为旋律输入。")
+        gr.Info("Using MIDI file as melody input.")
         melody_audio = None
     else:
         print(f"Using audio file for melody input: {melody_audio}")
-        gr.Info("Using audio file as melody input. / 使用音频文件提取旋律。")
+        gr.Info("Using audio file to extract the melody.")
 
     if not lyrics:
-        raise gr.Error("Please enter lyrics. / 请输入歌词")
+        raise gr.Error("Please enter the lyrics.")
 
     try:
         print(f"Starting inference with seed: {seed}")
@@ -97,7 +97,7 @@ def run_inference(
         )
         return (SAMPLE_RATE_48K, gen_wav.numpy().T)
     except Exception as e:
-        raise gr.Error(f"Generation failed: {str(e)} / 生成失败: {str(e)}")
+        raise gr.Error(f"Generation failed: {str(e)}")
 
 
 demo_inputs = [
@@ -144,40 +144,98 @@ with gr.Blocks(title="YingSinger WebUI") as app:
     gr.Markdown(
         """
         <div style="text-align: center;">
-            <h1>YingMusic-Singer 零样本 歌声合成 & 编辑</h1>
+            <h1>YingMusic-Singer Zero-Shot Singing Voice Synthesis & Editing</h1>
+            <p style="font-size: 15px; color: #666;">
+                Clone any singing voice and sing your own lyrics to any melody — no training required.
+            </p>
         </div>
         """
     )
 
-    gr.Markdown("### 1. 输入设置 （输入音频请使用干声、否则会影响使用效果）")
+    gr.Markdown(
+        """
+        **How it works:** Upload a short clip of a voice you want to imitate (timbre), provide the
+        melody you want it to sing (either an audio clip or a MIDI file), and type the lyrics.
+        The model then generates a new singing performance in that voice, following the melody and your words.
+        """
+    )
+
+    gr.Markdown(
+        "### 1. Input Settings"
+        "<br><small style='color:#888;'>Tip: Use dry/clean audio (no reverb, music, or background noise) "
+        "for best results. The timbre and melody clips should ideally be the same language as your lyrics.</small>"
+    )
     with gr.Row():
         with gr.Column():
-            timbre_audio = gr.Audio(label="音色参考音频（干声）", type="filepath")
+            timbre_audio = gr.Audio(label="Timbre Reference Audio (Dry)", type="filepath")
+            gr.Markdown(
+                "<small style='color:#888;'>The voice to imitate. A 5–15s clean singing or speech clip works best.</small>"
+            )
             timbre_content = gr.Textbox(
-                label="参考音频文本内容", placeholder="请输入参考音频中说/唱的文字内容，", lines=2
+                label="Reference Audio Text Content",
+                placeholder="Enter the exact spoken/sung text content of the reference audio above",
+                lines=2,
+            )
+            gr.Markdown(
+                "<small style='color:#888;'>This helps the model understand the voice. Must match what is actually said/sung in the clip.</small>"
             )
 
         with gr.Column():
             with gr.Tabs():
-                with gr.Tab("从音频提取旋律"):
-                    melody_audio = gr.Audio(label="旋律参考音频（干声）", type="filepath")
-                with gr.Tab("使用 MIDI 文件"):
-                    midi_file = gr.File(label="MIDI 文件", file_types=[".mid", ".midi"])
+                with gr.Tab("Extract melody from audio"):
+                    melody_audio = gr.Audio(label="Melody Reference Audio (Dry)", type="filepath")
+                    gr.Markdown(
+                        "<small style='color:#888;'>The tune to sing. A clean instrumental or acapella clip whose melody will be followed.</small>"
+                    )
+                with gr.Tab("Use MIDI file"):
+                    midi_file = gr.File(label="MIDI File", file_types=[".mid", ".midi"])
+                    gr.Markdown(
+                        "<small style='color:#888;'>Alternatively, provide a MIDI file defining the exact notes/pitch of the melody.</small>"
+                    )
 
-            lyrics = gr.Textbox(label="目标歌词", placeholder="请输入想要合成的歌词", lines=2)
+            lyrics = gr.Textbox(label="Target Lyrics", placeholder="Enter the lyrics you want to synthesize", lines=2)
+            gr.Markdown(
+                "<small style='color:#888;'>The words the generated voice will sing, following the melody above. Punctuation adds natural pauses.</small>"
+            )
 
-    with gr.Accordion("高级参数设置", open=True):
+    with gr.Accordion("Advanced Parameter Settings", open=True):
+        gr.Markdown(
+            "<small style='color:#888;'>These control the sound and quality. The defaults work well — tweak them if you want to experiment.</small>"
+        )
         with gr.Row():
-            pitch_shift = gr.Slider(minimum=-12, maximum=12, value=0, step=1, label="Pitch Shift (升降调)")
-            cfg_strength = gr.Slider(minimum=1.0, maximum=10.0, value=4.0, step=0.1, label="CFG Strength (引导强度)")
-            nfe_steps = gr.Slider(minimum=10, maximum=200, value=32, step=1, label="NFE Steps (推理步数)")
-            sde_strength = gr.Slider(minimum=0.0, maximum=1.0, value=0.3, step=0.01, label="SDE Strength")
-            seed = gr.Number(value=666, label="随机种子 (Seed)", precision=0)
+            pitch_shift = gr.Slider(
+                minimum=-12, maximum=12, value=0, step=1,
+                label="Pitch Shift (Semitones)",
+                info="Shift the melody up (+) or down (-) to better fit the voice's natural range.",
+            )
+            cfg_strength = gr.Slider(
+                minimum=1.0, maximum=10.0, value=4.0, step=0.1,
+                label="CFG Strength (Guidance)",
+                info="Higher = stricter adherence to the melody/lyrics but less natural; lower = more expressive but may drift.",
+            )
+            nfe_steps = gr.Slider(
+                minimum=10, maximum=200, value=32, step=1,
+                label="NFE Steps (Inference Steps)",
+                info="More steps = higher quality but slower generation. 32 is fast, 64+ is higher quality.",
+            )
+            sde_strength = gr.Slider(
+                minimum=0.0, maximum=1.0, value=0.3, step=0.01,
+                label="SDE Strength",
+                info="Adds variation/noise for a more natural, less robotic result. 0 = deterministic.",
+            )
+            seed = gr.Number(
+                value=666, label="Random Seed", precision=0,
+                info="Same seed + same inputs = same output. Change it to get a different variation.",
+            )
 
-    submit_btn = gr.Button("开始生成", variant="primary")
+    submit_btn = gr.Button("🎤 Generate", variant="primary")
 
-    gr.Markdown("### 2. 生成结果（可以尝试不同的 SDE Strength 和 Seed 以获取更理想的效果）")
-    output_audio = gr.Audio(label="合成音频", type="numpy")
+    gr.Markdown(
+        "### 2. Generation Results"
+        "<br><small style='color:#888;'>Not happy with the result? Try a different <b>Seed</b> or <b>SDE Strength</b>, "
+        "or check that your reference audio is clean. Higher <b>NFE Steps</b> generally improves quality.</small>"
+    )
+    output_audio = gr.Audio(label="Synthesized Audio", type="numpy", interactive=False)
 
     gr.Examples(
         examples=[
@@ -207,7 +265,8 @@ with gr.Blocks(title="YingSinger WebUI") as app:
             sde_strength,
             seed,
         ],
-        label="示例输入",
+        label="Example Inputs (Click any row to load it)",
+        examples_per_page=10,
     )
 
     submit_btn.click(
